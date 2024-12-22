@@ -9,10 +9,12 @@ USE consular_service;
 CREATE TABLE IF NOT EXISTS applicants (
     id INT AUTO_INCREMENT PRIMARY KEY,
     full_name VARCHAR(255) NOT NULL,
+    date_of_birth DATE NOT NULL,
+    citizenship VARCHAR(100) NOT NULL,
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
     phone VARCHAR(20),
+    email VARCHAR(100),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
