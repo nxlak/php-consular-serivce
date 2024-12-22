@@ -32,7 +32,15 @@ CREATE TABLE IF NOT EXISTS contact_info (
     FOREIGN KEY (applicant_id) REFERENCES applicants(id) ON DELETE CASCADE
 );
 
--- 5. Создать таблицу для заявок (applications)
+-- 5. Создать таблицу для собеседований (interviews)
+CREATE TABLE IF NOT EXISTS interviews (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    location VARCHAR(255) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'Not Conducted', -- Not Conducted, Passed, Failed, etc.
+    interview_date DATETIME NOT NULL
+);
+
+-- 6. Создать таблицу для заявок (applications)
 CREATE TABLE IF NOT EXISTS applications (
     id INT AUTO_INCREMENT PRIMARY KEY,
     applicant_id INT NOT NULL,
@@ -42,13 +50,13 @@ CREATE TABLE IF NOT EXISTS applications (
     interview_id INT NULL,
     interview_date DATE NULL,
     interview_time TIME NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'new',  -- new, in_progress, approved, denied, interview_scheduled и т.д.
+    status VARCHAR(50) NOT NULL DEFAULT 'new',  -- new, in_progress, approved, denied, interview_scheduled, visa_issued, visa_denied и т.д.
     FOREIGN KEY (applicant_id) REFERENCES applicants(id) ON DELETE CASCADE,
     FOREIGN KEY (assigned_employee_id) REFERENCES employees(id),
-    FOREIGN KEY (interview_id) REFERENCES interviews(id)
+    FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE SET NULL
 );
 
--- 6. Создать таблицу для документов (documents)
+-- 7. Создать таблицу для документов (documents)
 CREATE TABLE IF NOT EXISTS documents (
     id INT AUTO_INCREMENT PRIMARY KEY,
     application_id INT NOT NULL,
@@ -58,16 +66,7 @@ CREATE TABLE IF NOT EXISTS documents (
     FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
 );
 
--- 7. Создать таблицу для собеседований (interviews)
-CREATE TABLE IF NOT EXISTS interviews (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    location VARCHAR(255) NOT NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'Not Conducted', -- Not Conducted, Passed, Failed, etc.
-    interview_date DATETIME NOT NULL
-);
-
 -- 8. Создать таблицу для расписания (schedule) - при необходимости
--- Если вы хотите вести расписание для сотрудников
 CREATE TABLE IF NOT EXISTS schedule (
     id INT AUTO_INCREMENT PRIMARY KEY,
     employee_id INT NOT NULL,
