@@ -38,6 +38,16 @@ CREATE TABLE IF NOT EXISTS applications (
     FOREIGN KEY (applicant_id) REFERENCES applicants(id) ON DELETE CASCADE
 );
 
+-- Таблица для документов
+CREATE TABLE IF NOT EXISTS documents (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    application_id INT NOT NULL,
+    document_type VARCHAR(100) NOT NULL,
+    expiration_date DATE NOT NULL,
+    document_path VARCHAR(255) NOT NULL,
+    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
+);
+
 -- Таблица для кейсов
 CREATE TABLE IF NOT EXISTS cases (
     id INT AUTO_INCREMENT PRIMARY KEY,
