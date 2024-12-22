@@ -1,0 +1,182 @@
+/* css/styles.css */
+
+/* Сброс стилей (reset) для единообразия во всех браузерах */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+/* Шрифты и базовые цвета */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #eef1f5; /* светло-серый фон */
+    color: #333;               /* тёмно-серый текст */
+}
+
+/* Шапка сайта */
+header {
+    background-color: #003366; /* тёмно-синий */
+    color: #ffffff;
+    padding: 20px 0;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    text-align: center;
+}
+
+header h1 {
+    margin-bottom: 10px;
+}
+
+/* Навигация в шапке */
+nav a {
+    color: #ffffff;
+    margin: 0 15px;
+    text-decoration: none;
+    font-weight: 500;
+    transition: color 0.3s ease;
+}
+
+nav a:hover {
+    color: #cce0ff; /* светлеет текст при наведении */
+}
+
+/* Основной контейнер */
+.container {
+    width: 90%;
+    max-width: 1200px;
+    margin: auto;
+    background-color: #ffffff;
+    padding: 20px 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+}
+
+/* Заголовки */
+.container h2, .container h3 {
+    margin-bottom: 15px;
+    color: #003366;
+}
+
+/* Формы */
+form {
+    margin-bottom: 20px;
+}
+
+form label {
+    display: block;
+    margin-top: 10px;
+    font-weight: 600;
+}
+
+form input[type="text"],
+form input[type="password"],
+form input[type="email"],
+form input[type="date"],
+form input[type="time"],
+form select,
+form textarea {
+    width: 100%;
+    padding: 8px 10px;
+    margin-top: 5px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+form input[type="submit"],
+form button {
+    display: inline-block;
+    padding: 10px 20px;
+    margin-top: 15px;
+    border: none;
+    border-radius: 4px;
+    background-color: #003366;
+    color: #ffffff;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    font-weight: 600;
+}
+
+form input[type="submit"]:hover,
+form button:hover {
+    background-color: #0055a5; /* немного светлее */
+}
+
+/* Кнопка "Добавить ещё документ" */
+button[type="button"] {
+    background-color: #4CAF50;
+}
+
+button[type="button"]:hover {
+    background-color: #3c8b41;
+}
+
+/* Таблицы */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 15px 0;
+}
+
+table th, table td {
+    border: 1px solid #ccc;
+    padding: 10px;
+    text-align: left;
+}
+
+table th {
+    background-color: #f0f5fa;
+    font-weight: 600;
+    color: #333;
+}
+
+/* Блоки ошибок и успеха */
+.error {
+    background-color: #ffe0e0;
+    color: #9b1c1c;
+    border: 1px solid #f5c2c7;
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+}
+
+.success {
+    background-color: #e0ffe0;
+    color: #1c9b1c;
+    border: 1px solid #b0e6b0;
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 4px;
+}
+
+/* Ссылки внутри .container */
+.container a {
+    color: #003366;
+    font-weight: 500;
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.container a:hover {
+    color: #0055a5;
+}
+
+/* Нижний отступ у body, чтобы прижать футер к низу экрана (опционально) */
+body {
+    margin-bottom: 60px;
+}
+
+/* Простой футер (если понадобится) */
+footer {
+    position: fixed; /* или static, если не нужен "прилипший" футер */
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    background-color: #003366;
+    color: #fff;
+    text-align: center;
+    padding: 10px 0;
+}
