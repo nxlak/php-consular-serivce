@@ -1,92 +1,87 @@
-CREATE DATABASE consular_service CHARACTER SET utf8 COLLATE utf8_general_ci;
+-- 1. Создать базу данных (если её нет)
+CREATE DATABASE IF NOT EXISTS consular_service
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_general_ci;
+
 USE consular_service;
 
--- Таблица 'applicants' (Заявитель)
-CREATE TABLE applicants (
+-- 2. Создать таблицу для сотрудников (employees)
+CREATE TABLE IF NOT EXISTS employees (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    full_name VARCHAR(255) NOT NULL,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL
+);
+
+-- 3. Создать таблицу для заявителей (applicants)
+CREATE TABLE IF NOT EXISTS applicants (
     id INT AUTO_INCREMENT PRIMARY KEY,
     full_name VARCHAR(255) NOT NULL,
     date_of_birth DATE NOT NULL,
     citizenship VARCHAR(100) NOT NULL,
-    username VARCHAR(50) UNIQUE NOT NULL,
+    username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL
 );
 
--- Таблица 'contact_info' (Контактная информация)
-CREATE TABLE contact_info (
-    applicant_id INT PRIMARY KEY,
-    phone_number VARCHAR(20) NOT NULL,
-    email VARCHAR(100) UNIQUE NOT NULL,
-    FOREIGN KEY (applicant_id) REFERENCES applicants(id) ON DELETE CASCADE
-);
-
--- Таблица 'applications' (Заявка)
-CREATE TABLE applications (
+-- 4. Создать таблицу для контактной информации (contact_info)
+CREATE TABLE IF NOT EXISTS contact_info (
     id INT AUTO_INCREMENT PRIMARY KEY,
     applicant_id INT NOT NULL,
-    submission_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-    visa_category VARCHAR(100) NOT NULL,
-    status ENUM('На рассмотрении', 'Принято', 'Отклонено', 'Отменено') DEFAULT 'На рассмотрении',
-    interview_id INT DEFAULT NULL,
+    phone_number VARCHAR(50),
+    email VARCHAR(100),
     FOREIGN KEY (applicant_id) REFERENCES applicants(id) ON DELETE CASCADE
 );
 
--- Таблица 'documents' (Документы)
-CREATE TABLE documents (
+-- 5. Создать таблицу для заявок (applications)
+CREATE TABLE IF NOT EXISTS applications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    applicant_id INT NOT NULL,
+    assigned_employee_id INT NULL,
+    visa_category VARCHAR(100) NOT NULL,
+    submission_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    interview_id INT NULL,
+    interview_date DATE NULL,
+    interview_time TIME NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'new',  -- new, in_progress, approved, denied, interview_scheduled и т.д.
+    FOREIGN KEY (applicant_id) REFERENCES applicants(id) ON DELETE CASCADE,
+    FOREIGN KEY (assigned_employee_id) REFERENCES employees(id),
+    FOREIGN KEY (interview_id) REFERENCES interviews(id)
+);
+
+-- 6. Создать таблицу для документов (documents)
+CREATE TABLE IF NOT EXISTS documents (
     id INT AUTO_INCREMENT PRIMARY KEY,
     application_id INT NOT NULL,
     document_type VARCHAR(100) NOT NULL,
-    submission_date DATETIME DEFAULT CURRENT_TIMESTAMP,
     expiration_date DATE NOT NULL,
-    document_scan LONGBLOB,
+    document_scan LONGBLOB NOT NULL,
     FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
 );
 
--- Таблица 'schedule' (График)
-CREATE TABLE schedule (
+-- 7. Создать таблицу для собеседований (interviews)
+CREATE TABLE IF NOT EXISTS interviews (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    location VARCHAR(255) NOT NULL,
+    status VARCHAR(50) NOT NULL DEFAULT 'Not Conducted', -- Not Conducted, Passed, Failed, etc.
+    interview_date DATETIME NOT NULL
+);
+
+-- 8. Создать таблицу для расписания (schedule) - при необходимости
+-- Если вы хотите вести расписание для сотрудников
+CREATE TABLE IF NOT EXISTS schedule (
     id INT AUTO_INCREMENT PRIMARY KEY,
     employee_id INT NOT NULL,
     date DATE NOT NULL,
     time_slot TIME NOT NULL,
-    is_free BOOLEAN DEFAULT TRUE,
-    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE CASCADE
+    is_free TINYINT(1) NOT NULL DEFAULT 1,
+    FOREIGN KEY (employee_id) REFERENCES employees(id)
 );
 
--- Таблица 'employees' (Сотрудник)
-CREATE TABLE employees (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    full_name VARCHAR(255) NOT NULL,
-    position VARCHAR(100) NOT NULL,
-    username VARCHAR(50) UNIQUE NOT NULL,
-    password VARCHAR(255) NOT NULL
-);
+-- Пример наполнения тестовыми сотрудниками и заявителями:
+INSERT INTO employees (full_name, username, password)
+VALUES ('Иван Петров', 'ivan_petrov', '12345'),
+       ('Мария Сидорова', 'mariya_sidorova', '12345');
 
--- Таблица 'cases' (Дело)
-CREATE TABLE cases (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    employee_id INT NOT NULL,
-    application_id INT NOT NULL,
-    status ENUM('Открыто', 'Закрыто') DEFAULT 'Открыто',
-    opening_date DATETIME DEFAULT CURRENT_TIMESTAMP,
-    closing_date DATETIME DEFAULT NULL,
-    interview_id INT DEFAULT NULL,
-    FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL,
-    FOREIGN KEY (application_id) REFERENCES applications(id) ON DELETE CASCADE
-);
-
--- Таблица 'interviews' (Собеседование)
-CREATE TABLE interviews (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    location VARCHAR(255) NOT NULL,
-    status ENUM('Пройдено', 'Не пройдено') DEFAULT 'Не пройдено',
-    interview_date DATETIME DEFAULT NULL
-);
-
--- Таблица 'visas' (Виза)
-CREATE TABLE visas (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    case_id INT NOT NULL,
-    visa_type VARCHAR(100) NOT NULL,
-    issue_date DATE NOT NULL,
-    expiration_date DATE NOT NULL,
-    FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE SET NULL
-);
+INSERT INTO applicants (full_name, date_of_birth, citizenship, username, password)
+VALUES ('Андрей Андреев', '1990-01-10', 'Россия', 'andrey', '12345'),
+       ('Елена Александрова', '1985-05-20', 'Беларусь', 'elena', '12345');
