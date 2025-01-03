@@ -17,45 +17,55 @@ if (!isset($_GET['application_id'])) {
 
 $application_id = intval($_GET['application_id']);
 
-// Проверка принадлежности заявки текущему пользователю
-$stmt = $conn->prepare("SELECT visa_category, status, submission_date FROM applications WHERE id = ? AND applicant_id = ?");
-$stmt->bind_param("ii", $application_id, $applicant_id);
-$stmt->execute();
-$stmt->store_result();
-if ($stmt->num_rows != 1) {
-    $stmt->close();
-    header("Location: dashboard.php");
-    exit();
-}
-$stmt->bind_result($visa_category, $status, $submission_date);
-$stmt->fetch();
-$stmt->close();
+// Начало транзакции
+$conn->begin_transaction();
 
-// Получение документов
-$stmt = $conn->prepare("SELECT document_type, expiration_date FROM documents WHERE application_id = ?");
-$stmt->bind_param("i", $application_id);
-$stmt->execute();
-$result = $stmt->get_result();
-$documents = $result->fetch_all(MYSQLI_ASSOC);
-$stmt->close();
-
-// Получение даты и времени собеседования
-$stmt = $conn->prepare("SELECT interviews.id, interviews.location, interviews.status, interviews.interview_date FROM interviews JOIN applications ON applications.interview_id = interviews.id WHERE applications.id = ?");
-$stmt->bind_param("i", $application_id);
-$stmt->execute();
-$stmt->store_result();
-$interview = null;
-if ($stmt->num_rows == 1) {
-    $stmt->bind_result($interview_id, $location, $interview_status, $interview_date);
+try {
+    // Проверка принадлежности заявки текущему пользователю с блокировкой строки
+    $stmt = $conn->prepare("SELECT visa_category, status, submission_date FROM applications WHERE id = ? AND applicant_id = ? FOR UPDATE");
+    $stmt->bind_param("ii", $application_id, $applicant_id);
+    $stmt->execute();
+    $stmt->store_result();
+    if ($stmt->num_rows != 1) {
+        throw new Exception("Заявка не найдена или вам не назначена.");
+    }
+    $stmt->bind_result($visa_category, $status, $submission_date);
     $stmt->fetch();
-    $interview = [
-        'id' => $interview_id,
-        'location' => $location,
-        'status' => $interview_status,
-        'interview_date' => $interview_date
-    ];
+    $stmt->close();
+
+    // Получение документов
+    $stmt = $conn->prepare("SELECT document_type, expiration_date FROM documents WHERE application_id = ?");
+    $stmt->bind_param("i", $application_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $documents = $result->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+
+    // Получение даты и времени собеседования
+    $stmt = $conn->prepare("SELECT interviews.id, interviews.location, interviews.status, interviews.interview_date FROM interviews JOIN applications ON applications.interview_id = interviews.id WHERE applications.id = ?");
+    $stmt->bind_param("i", $application_id);
+    $stmt->execute();
+    $stmt->store_result();
+    $interview = null;
+    if ($stmt->num_rows == 1) {
+        $stmt->bind_result($interview_id, $location, $interview_status, $interview_date);
+        $stmt->fetch();
+        $interview = [
+            'id' => $interview_id,
+            'location' => $location,
+            'status' => $interview_status,
+            'interview_date' => $interview_date
+        ];
+    }
+    $stmt->close();
+
+    // Коммит транзакции
+    $conn->commit();
+} catch (Exception $e) {
+    // Откат транзакции в случае ошибки
+    $conn->rollback();
+    $errors[] = $e->getMessage();
 }
-$stmt->close();
 ?>
 
 <!DOCTYPE html>
