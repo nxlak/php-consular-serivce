@@ -13,26 +13,38 @@ $application_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $errors = [];
 $documents = [];
 
-// Проверка, что заявка назначена текущему сотруднику и существует
-$stmt = $conn->prepare("SELECT status FROM applications WHERE id = ? AND assigned_employee_id = ?");
-$stmt->bind_param("ii", $application_id, $employee_id);
-$stmt->execute();
-$stmt->store_result();
+// Начало транзакции
+$conn->begin_transaction();
 
-if ($stmt->num_rows != 1) {
-    $errors[] = "Заявка не найдена или вам не назначена.";
-} else {
-    // Получение документов
-    $stmt->close();
-    $stmt_docs = $conn->prepare("SELECT id, document_type, expiration_date FROM documents WHERE application_id = ?");
-    $stmt_docs->bind_param("i", $application_id);
-    $stmt_docs->execute();
-    $result_docs = $stmt_docs->get_result();
+try {
+    // Проверка, что заявка назначена текущему сотруднику и существует с блокировкой строки
+    $stmt = $conn->prepare("SELECT status FROM applications WHERE id = ? AND assigned_employee_id = ? FOR UPDATE");
+    $stmt->bind_param("ii", $application_id, $employee_id);
+    $stmt->execute();
+    $stmt->store_result();
 
-    while ($doc = $result_docs->fetch_assoc()) {
-        $documents[] = $doc;
+    if ($stmt->num_rows != 1) {
+        throw new Exception("Заявка не найдена или вам не назначена.");
+    } else {
+        // Получение документов
+        $stmt->close();
+        $stmt_docs = $conn->prepare("SELECT id, document_type, expiration_date FROM documents WHERE application_id = ?");
+        $stmt_docs->bind_param("i", $application_id);
+        $stmt_docs->execute();
+        $result_docs = $stmt_docs->get_result();
+
+        while ($doc = $result_docs->fetch_assoc()) {
+            $documents[] = $doc;
+        }
+        $stmt_docs->close();
     }
-    $stmt_docs->close();
+
+    // Коммит транзакции
+    $conn->commit();
+} catch (Exception $e) {
+    // Откат транзакции в случае ошибки
+    $conn->rollback();
+    $errors[] = $e->getMessage();
 }
 
 // Обработка скачивания документа
