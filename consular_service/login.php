@@ -7,25 +7,39 @@ $errors = [];
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = trim($_POST['username']);
     $password = $_POST['password'];
-    $user_type = $_POST['user_type']; // 'applicant' или 'employee'
 
-    if (empty($username) || empty($password) || empty($user_type)) {
+    if (empty($username) || empty($password)) {
         $errors[] = "Все поля обязательны для заполнения.";
     } else {
-        if ($user_type == 'applicant') {
-            // Поиск в таблице applicants
+        // Проверяем сначала в таблице сотрудников
+        $stmt = $conn->prepare("SELECT id, password FROM employees WHERE username = ?");
+        $stmt->bind_param("s", $username);
+        $stmt->execute();
+        $stmt->store_result();
+
+        if ($stmt->num_rows == 1) {
+            $stmt->bind_result($id, $stored_password);
+            $stmt->fetch();
+            if ($password === $stored_password) { // НЕБЕЗОПАСНО (рекомендуется использовать password_verify)
+                $_SESSION['user_id'] = $id;
+                $_SESSION['username'] = $username;
+                $_SESSION['user_type'] = 'employee';
+                header("Location: employee/employee_dashboard.php");
+                exit();
+            } else {
+                $errors[] = "Неверный пароль.";
+            }
+        } else {
+            // Если не найден в таблице сотрудников, проверяем в таблице заявителей
             $stmt = $conn->prepare("SELECT id, password FROM applicants WHERE username = ?");
             $stmt->bind_param("s", $username);
             $stmt->execute();
             $stmt->store_result();
+
             if ($stmt->num_rows == 1) {
                 $stmt->bind_result($id, $stored_password);
                 $stmt->fetch();
-                // Рекомендация: Используйте password_verify() для проверки хешированных паролей
-                // Пример:
-                // if (password_verify($password, $stored_password)) {
-                if ($password === $stored_password) { // НЕБЕЗОПАСНО
-                    // Успешный вход
+                if ($password === $stored_password) { // НЕБЕЗОПАСНО (рекомендуется использовать password_verify)
                     $_SESSION['user_id'] = $id;
                     $_SESSION['username'] = $username;
                     $_SESSION['user_type'] = 'applicant';
@@ -37,36 +51,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             } else {
                 $errors[] = "Пользователь не найден.";
             }
-            $stmt->close();
-        } elseif ($user_type == 'employee') {
-            // Поиск в таблице employees
-            $stmt = $conn->prepare("SELECT id, password FROM employees WHERE username = ?");
-            $stmt->bind_param("s", $username);
-            $stmt->execute();
-            $stmt->store_result();
-            if ($stmt->num_rows == 1) {
-                $stmt->bind_result($id, $stored_password);
-                $stmt->fetch();
-                // Рекомендация: Используйте password_verify() для проверки хешированных паролей
-                // Пример:
-                // if (password_verify($password, $stored_password)) {
-                if ($password === $stored_password) { // НЕБЕЗОПАСНО
-                    // Успешный вход
-                    $_SESSION['user_id'] = $id;
-                    $_SESSION['username'] = $username;
-                    $_SESSION['user_type'] = 'employee';
-                    header("Location: employee/employee_dashboard.php");
-                    exit();
-                } else {
-                    $errors[] = "Неверный пароль.";
-                }
-            } else {
-                $errors[] = "Сотрудник не найден.";
-            }
-            $stmt->close();
-        } else {
-            $errors[] = "Неверный тип пользователя.";
         }
+        $stmt->close();
     }
 }
 ?>
@@ -102,13 +88,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
             <label for="password">Пароль:</label>
             <input type="password" id="password" name="password" required>
-
-            <label for="user_type">Тип пользователя:</label>
-            <select id="user_type" name="user_type" required>
-                <option value="">--Выберите--</option>
-                <option value="applicant">Заявитель</option>
-                <option value="employee">Сотрудник</option>
-            </select>
 
             <input type="submit" value="Войти">
         </form>
