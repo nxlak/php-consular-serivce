@@ -16,27 +16,38 @@ $success = '';
 if (isset($_POST['take_into_work'])) {
     $application_id = intval($_POST['application_id']);
 
-    // Проверка, что заявка в статусе 'new'
-    $stmt = $conn->prepare("SELECT status FROM applications WHERE id = ? AND status = 'new'");
-    $stmt->bind_param("i", $application_id);
-    $stmt->execute();
-    $stmt->store_result();
+    // Начало транзакции
+    $conn->begin_transaction();
 
-    if ($stmt->num_rows == 1) {
-        $stmt->close();
+    try {
+        // Проверка, что заявка в статусе 'new' с блокировкой строки
+        $stmt = $conn->prepare("SELECT status FROM applications WHERE id = ? AND status = 'new' FOR UPDATE");
+        $stmt->bind_param("i", $application_id);
+        $stmt->execute();
+        $stmt->store_result();
 
-        // Назначение заявки сотруднику и обновление статуса на 'in_progress'
-        $stmt_update = $conn->prepare("UPDATE applications SET assigned_employee_id = ?, status = 'in_progress' WHERE id = ?");
-        $stmt_update->bind_param("ii", $employee_id, $application_id);
-        if ($stmt_update->execute()) {
-            $success = "Вы успешно взяли заявку #$application_id в работу.";
+        if ($stmt->num_rows == 1) {
+            $stmt->close();
+
+            // Назначение заявки сотруднику и обновление статуса на 'in_progress'
+            $stmt_update = $conn->prepare("UPDATE applications SET assigned_employee_id = ?, status = 'in_progress' WHERE id = ?");
+            $stmt_update->bind_param("ii", $employee_id, $application_id);
+            if ($stmt_update->execute()) {
+                $success = "Вы успешно взяли заявку #$application_id в работу.";
+            } else {
+                throw new Exception("Ошибка при назначении заявки.");
+            }
+            $stmt_update->close();
         } else {
-            $errors[] = "Ошибка при назначении заявки.";
+            throw new Exception("Заявка уже взята в работу или не существует.");
         }
-        $stmt_update->close();
-    } else {
-        $errors[] = "Заявка уже взята в работу или не существует.";
-        $stmt->close();
+
+        // Коммит транзакции
+        $conn->commit();
+    } catch (Exception $e) {
+        // Откат транзакции в случае ошибки
+        $conn->rollback();
+        $errors[] = $e->getMessage();
     }
 }
 
@@ -44,27 +55,38 @@ if (isset($_POST['take_into_work'])) {
 if (isset($_POST['approve_application'])) {
     $application_id = intval($_POST['application_id']);
 
-    // Проверка, что заявка в статусе 'in_progress' и назначена этому сотруднику
-    $stmt = $conn->prepare("SELECT status FROM applications WHERE id = ? AND assigned_employee_id = ? AND status = 'in_progress'");
-    $stmt->bind_param("ii", $application_id, $employee_id);
-    $stmt->execute();
-    $stmt->store_result();
+    // Начало транзакции
+    $conn->begin_transaction();
 
-    if ($stmt->num_rows == 1) {
-        $stmt->close();
+    try {
+        // Проверка, что заявка в статусе 'in_progress' и назначена этому сотруднику с блокировкой строки
+        $stmt = $conn->prepare("SELECT status FROM applications WHERE id = ? AND assigned_employee_id = ? AND status = 'in_progress' FOR UPDATE");
+        $stmt->bind_param("ii", $application_id, $employee_id);
+        $stmt->execute();
+        $stmt->store_result();
 
-        // Обновление статуса заявки на 'approved' (Ожидает назначения собеседования)
-        $stmt_update = $conn->prepare("UPDATE applications SET status = 'approved' WHERE id = ?");
-        $stmt_update->bind_param("i", $application_id);
-        if ($stmt_update->execute()) {
-            $success = "Заявка #$application_id успешно одобрена и ожидает назначения собеседования.";
+        if ($stmt->num_rows == 1) {
+            $stmt->close();
+
+            // Обновление статуса заявки на 'approved' (Ожидает назначения собеседования)
+            $stmt_update = $conn->prepare("UPDATE applications SET status = 'approved' WHERE id = ?");
+            $stmt_update->bind_param("i", $application_id);
+            if ($stmt_update->execute()) {
+                $success = "Заявка #$application_id успешно одобрена и ожидает назначения собеседования.";
+            } else {
+                throw new Exception("Ошибка при одобрении заявки.");
+            }
+            $stmt_update->close();
         } else {
-            $errors[] = "Ошибка при одобрении заявки.";
+            throw new Exception("Заявка не найдена или не может быть одобрена.");
         }
-        $stmt_update->close();
-    } else {
-        $errors[] = "Заявка не найдена или не может быть одобрена.";
-        $stmt->close();
+
+        // Коммит транзакции
+        $conn->commit();
+    } catch (Exception $e) {
+        // Откат транзакции в случае ошибки
+        $conn->rollback();
+        $errors[] = $e->getMessage();
     }
 }
 
@@ -72,27 +94,38 @@ if (isset($_POST['approve_application'])) {
 if (isset($_POST['reject_application'])) {
     $application_id = intval($_POST['application_id']);
 
-    // Проверка, что заявка в статусе 'in_progress' и назначена этому сотруднику
-    $stmt = $conn->prepare("SELECT status FROM applications WHERE id = ? AND assigned_employee_id = ? AND status = 'in_progress'");
-    $stmt->bind_param("ii", $application_id, $employee_id);
-    $stmt->execute();
-    $stmt->store_result();
+    // Начало транзакции
+    $conn->begin_transaction();
 
-    if ($stmt->num_rows == 1) {
-        $stmt->close();
+    try {
+        // Проверка, что заявка в статусе 'in_progress' и назначена этому сотруднику с блокировкой строки
+        $stmt = $conn->prepare("SELECT status FROM applications WHERE id = ? AND assigned_employee_id = ? AND status = 'in_progress' FOR UPDATE");
+        $stmt->bind_param("ii", $application_id, $employee_id);
+        $stmt->execute();
+        $stmt->store_result();
 
-        // Обновление статуса заявки на 'denied'
-        $stmt_update = $conn->prepare("UPDATE applications SET status = 'denied' WHERE id = ?");
-        $stmt_update->bind_param("i", $application_id);
-        if ($stmt_update->execute()) {
-            $success = "Заявка #$application_id успешно отклонена.";
+        if ($stmt->num_rows == 1) {
+            $stmt->close();
+
+            // Обновление статуса заявки на 'denied'
+            $stmt_update = $conn->prepare("UPDATE applications SET status = 'denied' WHERE id = ?");
+            $stmt_update->bind_param("i", $application_id);
+            if ($stmt_update->execute()) {
+                $success = "Заявка #$application_id успешно отклонена.";
+            } else {
+                throw new Exception("Ошибка при отклонении заявки.");
+            }
+            $stmt_update->close();
         } else {
-            $errors[] = "Ошибка при отклонении заявки.";
+            throw new Exception("Заявка не найдена или не может быть отклонена.");
         }
-        $stmt_update->close();
-    } else {
-        $errors[] = "Заявка не найдена или не может быть отклонена.";
-        $stmt->close();
+
+        // Коммит транзакции
+        $conn->commit();
+    } catch (Exception $e) {
+        // Откат транзакции в случае ошибки
+        $conn->rollback();
+        $errors[] = $e->getMessage();
     }
 }
 
