@@ -13,49 +13,59 @@ $application_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $errors = [];
 $success = '';
 
-// Получение данных заявки и связанного собеседования
-$stmt = $conn->prepare("
-    SELECT a.id, a.submission_date, a.status, ap.full_name, a.interview_date, a.interview_time, i.id AS interview_id, i.status AS interview_status
-    FROM applications a
-    JOIN applicants ap ON a.applicant_id = ap.id
-    LEFT JOIN interviews i ON a.interview_id = i.id
-    WHERE a.id = ? AND a.assigned_employee_id = ?
-");
-$stmt->bind_param("ii", $application_id, $employee_id);
-$stmt->execute();
-$result = $stmt->get_result();
+// Начало транзакции
+$conn->begin_transaction();
 
-if ($result->num_rows != 1) {
-    $errors[] = "Заявка не найдена или вам не назначена.";
-} else {
-    $application = $result->fetch_assoc();
+try {
+    // Получение данных заявки и связанного собеседования с блокировкой строки
+    $stmt = $conn->prepare("
+        SELECT a.id, a.submission_date, a.status, ap.full_name, a.interview_date, a.interview_time, i.id AS interview_id, i.status AS interview_status
+        FROM applications a
+        JOIN applicants ap ON a.applicant_id = ap.id
+        LEFT JOIN interviews i ON a.interview_id = i.id
+        WHERE a.id = ? AND a.assigned_employee_id = ? FOR UPDATE
+    ");
+    $stmt->bind_param("ii", $application_id, $employee_id);
+    $stmt->execute();
+    $result = $stmt->get_result();
 
-    // Проверка, что заявка находится в статусе 'interview_scheduled'
-    if ($application['status'] != 'interview_scheduled') {
-        $errors[] = "Заявка не ожидает результатов собеседования.";
+    if ($result->num_rows != 1) {
+        throw new Exception("Заявка не найдена или вам не назначена.");
+    } else {
+        $application = $result->fetch_assoc();
+
+        // Проверка, что заявка находится в статусе 'interview_scheduled'
+        if ($application['status'] != 'interview_scheduled') {
+            throw new Exception("Заявка не ожидает результатов собеседования.");
+        }
     }
-}
-$stmt->close();
+    $stmt->close();
 
-// Обработка формы внесения результатов собеседования
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_results'])) {
-    $interview_result = $_POST['interview_result']; // 'visa_issued' или 'visa_denied'
+    // Обработка формы внесения результатов собеседования
+    if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_results'])) {
+        $interview_result = $_POST['interview_result']; // 'visa_issued' или 'visa_denied'
 
-    if (!in_array($interview_result, ['visa_issued', 'visa_denied'])) {
-        $errors[] = "Неверный результат собеседования.";
-    }
+        if (!in_array($interview_result, ['visa_issued', 'visa_denied'])) {
+            throw new Exception("Неверный результат собеседования.");
+        }
 
-    if (empty($errors)) {
         // Обновление статуса заявки
         $stmt_update = $conn->prepare("UPDATE applications SET status = ? WHERE id = ?");
         $stmt_update->bind_param("si", $interview_result, $application_id);
         if ($stmt_update->execute()) {
             $success = "Результаты собеседования успешно внесены.";
         } else {
-            $errors[] = "Ошибка при обновлении результатов собеседования.";
+            throw new Exception("Ошибка при обновлении результатов собеседования.");
         }
         $stmt_update->close();
     }
+
+    // Коммит транзакции
+    $conn->commit();
+} catch (Exception $e) {
+    // Откат транзакции в случае ошибки
+    $conn->rollback();
+    $errors[] = $e->getMessage();
 }
 ?>
 
