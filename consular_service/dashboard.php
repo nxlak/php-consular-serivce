@@ -17,67 +17,78 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['select_interview'])) {
     $application_id = intval($_POST['application_id']);
     $interview_slot_id = intval($_POST['interview_slot']);
 
-    // Проверка, что заявка принадлежит текущему заявителю и находится в статусе 'approved'
-    $stmt = $conn->prepare("SELECT status, assigned_employee_id FROM applications WHERE id = ? AND applicant_id = ?");
-    $stmt->bind_param("ii", $application_id, $applicant_id);
-    $stmt->execute();
-    $stmt->store_result();
+    // Начало транзакции
+    $conn->begin_transaction();
 
-    if ($stmt->num_rows == 1) {
-        $stmt->bind_result($status, $assigned_employee_id);
-        $stmt->fetch();
-        if ($status != 'approved') { // Статус 'approved' означает "Ожидает назначения собеседования"
-            $errors[] = "Заявка не готова для выбора даты собеседования.";
-        } else {
-            // Получение выбранного слота
-            $stmt_slot = $conn->prepare("SELECT date, time_slot FROM schedule WHERE id = ? AND employee_id = ? AND is_free = 1");
-            $stmt_slot->bind_param("ii", $interview_slot_id, $assigned_employee_id);
-            $stmt_slot->execute();
-            $stmt_slot->store_result();
+    try {
+        // Проверка, что заявка принадлежит текущему заявителю и находится в статусе 'approved' с блокировкой строки
+        $stmt = $conn->prepare("SELECT status, assigned_employee_id FROM applications WHERE id = ? AND applicant_id = ? FOR UPDATE");
+        $stmt->bind_param("ii", $application_id, $applicant_id);
+        $stmt->execute();
+        $stmt->store_result();
 
-            if ($stmt_slot->num_rows == 1) {
-                $stmt_slot->bind_result($interview_date, $interview_time);
-                $stmt_slot->fetch();
-
-                // Создание записи собеседования
-                $stmt_insert = $conn->prepare("INSERT INTO interviews (location, interview_date, status) VALUES (?, ?, 'Not Conducted')");
-                $location = "Консульское отделение"; // Можно сделать выбор места из списка, если необходимо
-                $interview_datetime = $interview_date . ' ' . $interview_time;
-                $stmt_insert->bind_param("ss", $location, $interview_datetime);
-                if ($stmt_insert->execute()) {
-                    $interview_id = $stmt_insert->insert_id;
-                    $stmt_insert->close();
-
-                    // Обновление заявки с ID собеседования, датой, временем и изменением статуса
-                    $stmt_update = $conn->prepare("UPDATE applications SET interview_id = ?, interview_date = ?, interview_time = ?, status = 'interview_scheduled' WHERE id = ?");
-                    $stmt_update->bind_param("issi", $interview_id, $interview_date, $interview_time, $application_id);
-                    if ($stmt_update->execute()) {
-                        // Обновление расписания сотрудника
-                        $stmt_schedule = $conn->prepare("UPDATE schedule SET is_free = 0 WHERE id = ?");
-                        $stmt_schedule->bind_param("i", $interview_slot_id);
-                        if ($stmt_schedule->execute()) {
-                            $success = "Дата и время собеседования успешно выбраны.";
-                        } else {
-                            $errors[] = "Ошибка при обновлении расписания сотрудника.";
-                        }
-                        $stmt_schedule->close();
-                    } else {
-                        $errors[] = "Ошибка при выборе даты и времени собеседования.";
-                    }
-                    $stmt_update->close();
-                } else {
-                    $errors[] = "Ошибка при создании записи собеседования.";
-                    $stmt_insert->close();
-                }
+        if ($stmt->num_rows == 1) {
+            $stmt->bind_result($status, $assigned_employee_id);
+            $stmt->fetch();
+            if ($status != 'approved') { // Статус 'approved' означает "Ожидает назначения собеседования"
+                throw new Exception("Заявка не готова для выбора даты собеседования.");
             } else {
-                $errors[] = "Выбранный слот недоступен.";
+                // Получение выбранного слота с блокировкой строки
+                $stmt_slot = $conn->prepare("SELECT date, time_slot FROM schedule WHERE id = ? AND employee_id = ? AND is_free = 1 FOR UPDATE");
+                $stmt_slot->bind_param("ii", $interview_slot_id, $assigned_employee_id);
+                $stmt_slot->execute();
+                $stmt_slot->store_result();
+
+                if ($stmt_slot->num_rows == 1) {
+                    $stmt_slot->bind_result($interview_date, $interview_time);
+                    $stmt_slot->fetch();
+
+                    // Создание записи собеседования
+                    $stmt_insert = $conn->prepare("INSERT INTO interviews (location, interview_date, status) VALUES (?, ?, 'Not Conducted')");
+                    $location = "Консульское отделение"; // Можно сделать выбор места из списка, если необходимо
+                    $interview_datetime = $interview_date . ' ' . $interview_time;
+                    $stmt_insert->bind_param("ss", $location, $interview_datetime);
+                    if ($stmt_insert->execute()) {
+                        $interview_id = $stmt_insert->insert_id;
+                        $stmt_insert->close();
+
+                        // Обновление заявки с ID собеседования, датой, временем и изменением статуса
+                        $stmt_update = $conn->prepare("UPDATE applications SET interview_id = ?, interview_date = ?, interview_time = ?, status = 'interview_scheduled' WHERE id = ?");
+                        $stmt_update->bind_param("issi", $interview_id, $interview_date, $interview_time, $application_id);
+                        if ($stmt_update->execute()) {
+                            // Обновление расписания сотрудника
+                            $stmt_schedule = $conn->prepare("UPDATE schedule SET is_free = 0 WHERE id = ?");
+                            $stmt_schedule->bind_param("i", $interview_slot_id);
+                            if ($stmt_schedule->execute()) {
+                                $success = "Дата и время собеседования успешно выбраны.";
+                            } else {
+                                throw new Exception("Ошибка при обновлении расписания сотрудника.");
+                            }
+                            $stmt_schedule->close();
+                        } else {
+                            throw new Exception("Ошибка при выборе даты и времени собеседования.");
+                        }
+                        $stmt_update->close();
+                    } else {
+                        throw new Exception("Ошибка при создании записи собеседования.");
+                    }
+                } else {
+                    throw new Exception("Выбранный слот недоступен.");
+                }
+                $stmt_slot->close();
             }
-            $stmt_slot->close();
+        } else {
+            throw new Exception("Заявка не найдена.");
         }
-    } else {
-        $errors[] = "Заявка не найдена.";
+        $stmt->close();
+
+        // Коммит транзакции
+        $conn->commit();
+    } catch (Exception $e) {
+        // Откат транзакции в случае ошибки
+        $conn->rollback();
+        $errors[] = $e->getMessage();
     }
-    $stmt->close();
 }
 
 // Получение списка заявок заявителя
