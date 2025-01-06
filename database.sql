@@ -94,3 +94,14 @@ VALUES
 (1, '2025-01-10', '14:30:00', 1),
 (1, '2025-01-10', '16:00:00', 1),
 (1, '2025-01-10', '17:30:00', 1);
+
+
+DELIMITER //
+CREATE TRIGGER trg_applications_update_timestamp
+BEFORE UPDATE
+ON applications
+FOR EACH ROW
+BEGIN
+    SET NEW.updated_at = CURRENT_TIMESTAMP;
+END//
+DELIMITER ;
