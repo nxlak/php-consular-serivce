@@ -1,55 +1,95 @@
 <?php
-// employee/employee_dashboard.php
+// employee_dashboard.php
 include '../config.php';
 
 // Проверка аутентификации и прав доступа
 if (!isset($_SESSION['user_type']) || $_SESSION['user_type'] != 'employee') {
-    header("Location: ../login.php");
-    exit();
+    // Если запрос пришёл по AJAX, то возвращаем ошибку в JSON
+    if (
+        isset($_SERVER['HTTP_X_REQUESTED_WITH']) 
+        && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest'
+    ) {
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode(['success' => false, 'error' => 'Доступ запрещён']);
+        exit();
+    } else {
+        // Иначе редирект на страницу логина
+        header("Location: ../login.php");
+        exit();
+    }
 }
 
 $employee_id = $_SESSION['user_id'];
 $errors = [];
 $success = '';
 
-// Обработка действия "Взять заявку в работу"
-if (isset($_POST['take_into_work'])) {
-    $application_id = intval($_POST['application_id']);
+// =============================
+// ОБРАБОТКА АСИНХРОННОГО ЗАПРОСА "Взять заявку в работу"
+// =============================
+if (
+    $_SERVER['REQUEST_METHOD'] === 'POST'
+    && isset($_POST['action'])
+    && $_POST['action'] === 'take_into_work'
+) {
+    // Готовим ответ в формате JSON
+    header('Content-Type: application/json; charset=utf-8');
 
-    // Начало транзакции
+    // Получаем ID заявки
+    $application_id = intval($_POST['application_id'] ?? 0);
+
+    // Начинаем транзакцию
     $conn->begin_transaction();
-
     try {
-        // Проверка, что заявка в статусе 'new' с блокировкой строки
-        $stmt = $conn->prepare("SELECT status FROM applications WHERE id = ? AND status = 'new' FOR UPDATE");
+        // Проверка, что заявка в статусе 'new' (с блокировкой строки)
+        $stmt = $conn->prepare("
+            SELECT status 
+            FROM applications 
+            WHERE id = ? 
+              AND status = 'new' 
+            FOR UPDATE
+        ");
         $stmt->bind_param("i", $application_id);
         $stmt->execute();
         $stmt->store_result();
 
-        if ($stmt->num_rows == 1) {
+        if ($stmt->num_rows === 1) {
             $stmt->close();
 
-            // Назначение заявки сотруднику и обновление статуса на 'in_progress'
-            $stmt_update = $conn->prepare("UPDATE applications SET assigned_employee_id = ?, status = 'in_progress' WHERE id = ?");
+            // Назначаем заявку сотруднику и обновляем статус на 'in_progress'
+            $stmt_update = $conn->prepare("
+                UPDATE applications 
+                SET assigned_employee_id = ?, status = 'in_progress' 
+                WHERE id = ?
+            ");
             $stmt_update->bind_param("ii", $employee_id, $application_id);
             if ($stmt_update->execute()) {
-                $success = "Вы успешно взяли заявку #$application_id в работу.";
+                // Всё хорошо, формируем ответ
+                $conn->commit();
+                echo json_encode([
+                    'success' => true,
+                    'message' => "Вы успешно взяли заявку #{$application_id} в работу."
+                ]);
+                exit();
             } else {
                 throw new Exception("Ошибка при назначении заявки.");
             }
-            $stmt_update->close();
         } else {
             throw new Exception("Заявка уже взята в работу или не существует.");
         }
-
-        // Коммит транзакции
-        $conn->commit();
     } catch (Exception $e) {
         // Откат транзакции в случае ошибки
         $conn->rollback();
-        $errors[] = $e->getMessage();
+        echo json_encode([
+            'success' => false,
+            'error' => $e->getMessage(),
+        ]);
+        exit();
     }
 }
+
+// =============================
+// ДАЛЕЕ — ОБЫЧНАЯ СИНХРОННАЯ ЛОГИКА (Одобрение, отклонение и пр.)
+// =============================
 
 // Обработка одобрения заявки
 if (isset($_POST['approve_application'])) {
@@ -57,10 +97,16 @@ if (isset($_POST['approve_application'])) {
 
     // Начало транзакции
     $conn->begin_transaction();
-
     try {
-        // Проверка, что заявка в статусе 'in_progress' и назначена этому сотруднику с блокировкой строки
-        $stmt = $conn->prepare("SELECT status FROM applications WHERE id = ? AND assigned_employee_id = ? AND status = 'in_progress' FOR UPDATE");
+        // Проверка, что заявка в статусе 'in_progress' и назначена этому сотруднику
+        $stmt = $conn->prepare("
+            SELECT status 
+            FROM applications 
+            WHERE id = ? 
+              AND assigned_employee_id = ? 
+              AND status = 'in_progress' 
+            FOR UPDATE
+        ");
         $stmt->bind_param("ii", $application_id, $employee_id);
         $stmt->execute();
         $stmt->store_result();
@@ -68,8 +114,12 @@ if (isset($_POST['approve_application'])) {
         if ($stmt->num_rows == 1) {
             $stmt->close();
 
-            // Обновление статуса заявки на 'approved' (Ожидает назначения собеседования)
-            $stmt_update = $conn->prepare("UPDATE applications SET status = 'approved' WHERE id = ?");
+            // Обновляем статус на 'approved'
+            $stmt_update = $conn->prepare("
+                UPDATE applications 
+                SET status = 'approved' 
+                WHERE id = ?
+            ");
             $stmt_update->bind_param("i", $application_id);
             if ($stmt_update->execute()) {
                 $success = "Заявка #$application_id успешно одобрена и ожидает назначения собеседования.";
@@ -81,10 +131,9 @@ if (isset($_POST['approve_application'])) {
             throw new Exception("Заявка не найдена или не может быть одобрена.");
         }
 
-        // Коммит транзакции
+        // Коммит
         $conn->commit();
     } catch (Exception $e) {
-        // Откат транзакции в случае ошибки
         $conn->rollback();
         $errors[] = $e->getMessage();
     }
@@ -96,10 +145,16 @@ if (isset($_POST['reject_application'])) {
 
     // Начало транзакции
     $conn->begin_transaction();
-
     try {
-        // Проверка, что заявка в статусе 'in_progress' и назначена этому сотруднику с блокировкой строки
-        $stmt = $conn->prepare("SELECT status FROM applications WHERE id = ? AND assigned_employee_id = ? AND status = 'in_progress' FOR UPDATE");
+        // Проверка, что заявка в статусе 'in_progress' и назначена этому сотруднику
+        $stmt = $conn->prepare("
+            SELECT status 
+            FROM applications 
+            WHERE id = ? 
+              AND assigned_employee_id = ? 
+              AND status = 'in_progress' 
+            FOR UPDATE
+        ");
         $stmt->bind_param("ii", $application_id, $employee_id);
         $stmt->execute();
         $stmt->store_result();
@@ -107,8 +162,12 @@ if (isset($_POST['reject_application'])) {
         if ($stmt->num_rows == 1) {
             $stmt->close();
 
-            // Обновление статуса заявки на 'denied'
-            $stmt_update = $conn->prepare("UPDATE applications SET status = 'denied' WHERE id = ?");
+            // Обновляем статус на 'denied'
+            $stmt_update = $conn->prepare("
+                UPDATE applications 
+                SET status = 'denied' 
+                WHERE id = ?
+            ");
             $stmt_update->bind_param("i", $application_id);
             if ($stmt_update->execute()) {
                 $success = "Заявка #$application_id успешно отклонена.";
@@ -120,10 +179,9 @@ if (isset($_POST['reject_application'])) {
             throw new Exception("Заявка не найдена или не может быть отклонена.");
         }
 
-        // Коммит транзакции
+        // Коммит
         $conn->commit();
     } catch (Exception $e) {
-        // Откат транзакции в случае ошибки
         $conn->rollback();
         $errors[] = $e->getMessage();
     }
@@ -214,10 +272,13 @@ $stmt->close();
                     <td><?= htmlspecialchars($row['submission_date'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($row['full_name'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
                     <td>
-                        <form method="POST" action="employee_dashboard.php">
-                            <input type="hidden" name="application_id" value="<?= htmlspecialchars($row['id'], ENT_QUOTES, 'UTF-8') ?>">
-                            <input type="submit" name="take_into_work" value="Взять заявку в работу">
-                        </form>
+                        <!-- Кнопка для асинхронного "взятия заявки в работу" -->
+                        <button 
+                            class="take-into-work-btn"
+                            data-id="<?= htmlspecialchars($row['id'], ENT_QUOTES, 'UTF-8') ?>"
+                        >
+                            Взять заявку в работу
+                        </button>
                     </td>
                 </tr>
             <?php endwhile; ?>
@@ -263,7 +324,7 @@ $stmt->close();
                     </td>
                     <td>
                         <?php if ($row['status'] == 'in_progress'): ?>
-                            <!-- Кнопки "Одобрить" и "Отклонить" заявку -->
+                            <!-- Кнопки "Одобрить" и "Отклонить" заявку (синхронные) -->
                             <form method="POST" action="employee_dashboard.php" style="display:inline;">
                                 <input type="hidden" name="application_id" value="<?= htmlspecialchars($row['id'], ENT_QUOTES, 'UTF-8') ?>">
                                 <input type="submit" name="approve_application" value="Одобрить">
@@ -273,7 +334,6 @@ $stmt->close();
                                 <input type="submit" name="reject_application" value="Отклонить">
                             </form>
                         <?php elseif ($row['status'] == 'approved'): ?>
-                            <!-- Удаляем возможность назначать собеседование -->
                             <span>Ожидает назначения собеседования</span>
                         <?php endif; ?>
                     </td>
@@ -303,7 +363,6 @@ $stmt->close();
                     <td><?= htmlspecialchars($row['submission_date'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($row['full_name'] ?? '', ENT_QUOTES, 'UTF-8') ?></td>
                     <td>
-                        <!-- Ссылка для просмотра документов -->
                         <a href="view_documents.php?id=<?= htmlspecialchars($row['id'], ENT_QUOTES, 'UTF-8') ?>">Просмотреть</a>
                     </td>
                     <td><?= htmlspecialchars($row['interview_date'] ?? '-', ENT_QUOTES, 'UTF-8') ?></td>
@@ -318,5 +377,45 @@ $stmt->close();
         <p>Нет результатов собеседований для обработки.</p>
     <?php endif; ?>
 </div>
+
+<!-- Подключаем небольшой скрипт для асинхронной отправки данных -->
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // Находим все кнопки "Взять заявку в работу"
+    const takeButtons = document.querySelectorAll('.take-into-work-btn');
+    takeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const applicationId = btn.getAttribute('data-id');
+            
+            // Формируем body для POST-запроса
+            const formData = new URLSearchParams();
+            formData.append('action', 'take_into_work');
+            formData.append('application_id', applicationId);
+
+            fetch('employee_dashboard.php', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: formData.toString()
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    // Обновляем страницу или меняем интерфейс динамически
+                    location.reload();
+                } else {
+                    alert('Ошибка: ' + data.error);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                alert('Произошла ошибка при отправке запроса.');
+            });
+        });
+    });
+});
+</script>
 </body>
 </html>
