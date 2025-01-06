@@ -30,7 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['select_interview'])) {
         if ($stmt->num_rows == 1) {
             $stmt->bind_result($status, $assigned_employee_id);
             $stmt->fetch();
-            if ($status != 'approved') { // Статус 'approved' означает "Ожидает назначения собеседования"
+            if ($status != 'approved') { 
                 throw new Exception("Заявка не готова для выбора даты собеседования.");
             } else {
                 // Получение выбранного слота с блокировкой строки
@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['select_interview'])) {
                         $interview_id = $stmt_insert->insert_id;
                         $stmt_insert->close();
 
-                        // Обновление заявки с ID собеседования, датой, временем и изменением статуса
+                        // Обновление заявки
                         $stmt_update = $conn->prepare("UPDATE applications SET interview_id = ?, interview_date = ?, interview_time = ?, status = 'interview_scheduled' WHERE id = ?");
                         $stmt_update->bind_param("issi", $interview_id, $interview_date, $interview_time, $application_id);
                         if ($stmt_update->execute()) {
@@ -92,16 +92,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['select_interview'])) {
 }
 
 // Получение списка заявок заявителя
-$stmt = $conn->prepare("SELECT a.id, a.submission_date, a.status, e.full_name AS employee_name, a.assigned_employee_id, a.interview_date, a.interview_time
-                        FROM applications a
-                        LEFT JOIN employees e ON a.assigned_employee_id = e.id
-                        WHERE a.applicant_id = ?");
+$stmt = $conn->prepare("
+    SELECT a.id, a.submission_date, a.status, e.full_name AS employee_name, a.assigned_employee_id, a.interview_date, a.interview_time
+    FROM applications a
+    LEFT JOIN employees e ON a.assigned_employee_id = e.id
+    WHERE a.applicant_id = ?
+");
 $stmt->bind_param("i", $applicant_id);
 $stmt->execute();
 $result_applications = $stmt->get_result();
 $stmt->close();
 ?>
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -137,6 +138,52 @@ $stmt->close();
 
         .time-slot {
             margin: 5px 0;
+        }
+
+        /* Стили для модального окна */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: #fff;
+            margin: 15% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 50%;
+            text-align: center;
+            border-radius: 8px;
+        }
+
+        #continueSession {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+
+        #continueSession:hover {
+            background-color: #45a049;
+        }
+
+        /* Стили для блока "Недавние действия" */
+        .recent-actions {
+            margin-top: 30px;
+            background-color: #f2f2f2;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .recent-actions h3 {
+            margin-top: 0;
         }
     </style>
 </head>
@@ -287,9 +334,95 @@ $stmt->close();
 
     <!-- Кнопка для подачи новой заявки -->
     <a href="submit_application.php"><button type="button" class="submit-button">Подать новую заявку</button></a>
+
+    <!-- Блок с недавними действиями (читаем cookie recent_actions) -->
+    <div class="recent-actions">
+        <h3>Недавние действия</h3>
+        <?php
+        if (isset($_COOKIE['recent_actions'])) {
+            $recent_actions = json_decode($_COOKIE['recent_actions'], true);
+            if (is_array($recent_actions) && count($recent_actions) > 0) {
+                echo '<ul>';
+                foreach ($recent_actions as $act) {
+                    echo '<li>';
+                    echo htmlspecialchars($act['action'], ENT_QUOTES, 'UTF-8');
+                    if (!empty($act['application_id'])) {
+                        echo ' (ID заявки: ' . htmlspecialchars($act['application_id'], ENT_QUOTES, 'UTF-8') . ')';
+                    }
+                    if (!empty($act['time'])) {
+                        echo ' — ' . htmlspecialchars($act['time'], ENT_QUOTES, 'UTF-8');
+                    }
+                    echo '</li>';
+                }
+                echo '</ul>';
+            } else {
+                echo '<p>Нет недавних действий.</p>';
+            }
+        } else {
+            echo '<p>Нет недавних действий.</p>';
+        }
+        ?>
+    </div>
+</div>
+
+<!-- Модальное окно для предупреждения об окончании сессии -->
+<div id="sessionTimeoutModal" class="modal">
+    <div class="modal-content">
+        <h2>Внимание!</h2>
+        <p>Ваша[thinking]
+
+ сессия скоро завершится из-за неактивности. Пожалуйста, нажмите "Продолжить", чтобы оставаться в системе.</p>
+        <button id="continueSession">Продолжить</button>
+    </div>
 </div>
 
 <!-- Подключение Bootstrap JS для аккордеона -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+<!-- Скрипт для отслеживания активности и отображения модального окна -->
+<script>
+    let timeoutWarning;
+    let timeoutLogout;
+    const warningTime = 1.5 * 60 * 1000; // 1.5 минуты (в миллисекундах)
+    const logoutTime = 2 * 60 * 1000; // 2 минуты (в миллисекундах)
+
+    // Функция для отображения модального окна
+    function showTimeoutWarning() {
+        const modal = document.getElementById('sessionTimeoutModal');
+        modal.style.display = 'block';
+    }
+
+    // Функция для сброса таймеров
+    function resetTimers() {
+        clearTimeout(timeoutWarning);
+        clearTimeout(timeoutLogout);
+        startTimers();
+    }
+
+    // Функция для запуска таймеров
+    function startTimers() {
+        timeoutWarning = setTimeout(showTimeoutWarning, warningTime);
+        timeoutLogout = setTimeout(() => {
+            window.location.href = 'logout.php?timeout=1';
+        }, logoutTime);
+    }
+
+    // Обработчик события для кнопки "Продолжить"
+    document.getElementById('continueSession').addEventListener('click', () => {
+        const modal = document.getElementById('sessionTimeoutModal');
+        modal.style.display = 'none';
+        resetTimers();
+    });
+
+    // Отслеживание активности пользователя
+    document.addEventListener('mousemove', resetTimers);
+    document.addEventListener('keypress', resetTimers);
+    document.addEventListener('click', resetTimers);
+
+    // Запуск таймеров при загрузке страницы
+    start[thinking]
+
+Timers();
+</script>
 </body>
 </html>

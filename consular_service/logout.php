@@ -1,11 +1,12 @@
 <?php
-// logout.php
-include 'config.php';
-
-// Разрушение сессии
+session_start();
 session_unset();
 session_destroy();
 
-header("Location: index.php");
+if (isset($_GET['timeout'])) {
+    header("Location: login.php?timeout=1");
+} else {
+    header("Location: login.php");
+}
 exit();
 ?>

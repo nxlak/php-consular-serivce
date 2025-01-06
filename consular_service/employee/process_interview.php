@@ -43,7 +43,7 @@ try {
 
     // Обработка формы внесения результатов собеседования
     if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['submit_results'])) {
-        $interview_result = $_POST['interview_result']; // 'visa_issued' или 'visa_denied'
+        $interview_result = $_POST['interview_result']; 
 
         if (!in_array($interview_result, ['visa_issued', 'visa_denied'])) {
             throw new Exception("Неверный результат собеседования.");
