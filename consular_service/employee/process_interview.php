@@ -1,5 +1,4 @@
 <?php
-// employee/process_interview.php
 include '../config.php';
 
 // Проверка аутентификации и прав доступа
@@ -13,7 +12,6 @@ $application_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $errors = [];
 $success = '';
 
-// Начало транзакции
 $conn->begin_transaction();
 
 try {
@@ -60,10 +58,8 @@ try {
         $stmt_update->close();
     }
 
-    // Коммит транзакции
     $conn->commit();
 } catch (Exception $e) {
-    // Откат транзакции в случае ошибки
     $conn->rollback();
     $errors[] = $e->getMessage();
 }

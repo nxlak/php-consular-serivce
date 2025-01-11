@@ -1,5 +1,4 @@
 <?php
-// view_documents.php
 include '../config.php';
 
 // Проверка аутентификации и прав доступа
@@ -13,7 +12,6 @@ $application_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $errors = [];
 $documents = [];
 
-// Начало транзакции
 $conn->begin_transaction();
 
 try {
@@ -39,10 +37,8 @@ try {
         $stmt_docs->close();
     }
 
-    // Коммит транзакции
     $conn->commit();
 } catch (Exception $e) {
-    // Откат транзакции в случае ошибки
     $conn->rollback();
     $errors[] = $e->getMessage();
 }
@@ -66,7 +62,6 @@ if (isset($_GET['download'])) {
         $stmt->bind_result($document_scan, $document_type);
         $stmt->fetch();
 
-        // Определение MIME-типа
         $finfo = new finfo(FILEINFO_MIME_TYPE);
         $mime_type = $finfo->buffer($document_scan);
 

@@ -1,5 +1,4 @@
 <?php
-// employee/process_application.php
 include '../config.php';
 
 // Проверка аутентификации и прав доступа
@@ -14,7 +13,6 @@ $application_id = isset($_GET['id']) ? intval($_GET['id']) : 0;
 $errors = [];
 $success = '';
 
-// Получение данных заявки с блокировкой строки
 $conn->begin_transaction();
 
 try {
@@ -70,10 +68,8 @@ try {
         }
     }
 
-    // Коммит транзакции
     $conn->commit();
 } catch (Exception $e) {
-    // Откат транзакции в случае ошибки
     $conn->rollback();
     $errors[] = $e->getMessage();
 }
