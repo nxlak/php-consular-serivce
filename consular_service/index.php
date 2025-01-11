@@ -1,5 +1,5 @@
 <?php
-// index.php
+
 include 'config.php';
 ?>
 

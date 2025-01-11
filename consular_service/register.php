@@ -1,5 +1,5 @@
 <?php
-// register.php
+
 include 'config.php';
 
 $errors = [];
@@ -44,17 +44,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $stmt->close();
 
     if (empty($errors)) {
-        // Рекомендация: Используйте password_hash() для хеширования паролей
-        // Пример:
-        // $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-
-        // Вставка пароля напрямую (небезопасно)
         $stmt = $conn->prepare("INSERT INTO applicants (full_name, date_of_birth, citizenship, username, password) VALUES (?, ?, ?, ?, ?)");
         $stmt->bind_param("sssss", $full_name, $date_of_birth, $citizenship, $username, $password);
         if ($stmt->execute()) {
             $applicant_id = $stmt->insert_id;
 
-            // Вставка в таблицу contact_info
             $stmt2 = $conn->prepare("INSERT INTO contact_info (applicant_id, phone_number, email) VALUES (?, ?, ?)");
             $stmt2->bind_param("iss", $applicant_id, $phone_number, $email);
             if ($stmt2->execute()) {

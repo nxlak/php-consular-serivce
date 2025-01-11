@@ -1,5 +1,4 @@
 <?php
-// dashboard.php
 include 'config.php';
 
 // Проверка аутентификации
@@ -17,7 +16,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['select_interview'])) {
     $application_id = intval($_POST['application_id']);
     $interview_slot_id = intval($_POST['interview_slot']);
 
-    // Начало транзакции
     $conn->begin_transaction();
 
     try {
@@ -45,7 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['select_interview'])) {
 
                     // Создание записи собеседования
                     $stmt_insert = $conn->prepare("INSERT INTO interviews (location, interview_date, status) VALUES (?, ?, 'Not Conducted')");
-                    $location = "Консульское отделение"; // Можно сделать выбор места из списка, если необходимо
+                    $location = "Консульское отделение"; 
                     $interview_datetime = $interview_date . ' ' . $interview_time;
                     $stmt_insert->bind_param("ss", $location, $interview_datetime);
                     if ($stmt_insert->execute()) {
@@ -82,10 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['select_interview'])) {
         }
         $stmt->close();
 
-        // Коммит транзакции
         $conn->commit();
     } catch (Exception $e) {
-        // Откат транзакции в случае ошибки
         $conn->rollback();
         $errors[] = $e->getMessage();
     }
@@ -369,9 +365,7 @@ $stmt->close();
 <div id="sessionTimeoutModal" class="modal">
     <div class="modal-content">
         <h2>Внимание!</h2>
-        <p>Ваша[thinking]
-
- сессия скоро завершится из-за неактивности. Пожалуйста, нажмите "Продолжить", чтобы оставаться в системе.</p>
+        <p>Ваша сессия скоро завершится из-за неактивности. Пожалуйста, нажмите "Продолжить", чтобы оставаться в системе.</p>
         <button id="continueSession">Продолжить</button>
     </div>
 </div>
@@ -383,8 +377,8 @@ $stmt->close();
 <script>
     let timeoutWarning;
     let timeoutLogout;
-    const warningTime = 1.5 * 60 * 1000; // 1.5 минуты (в миллисекундах)
-    const logoutTime = 2 * 60 * 1000; // 2 минуты (в миллисекундах)
+    const warningTime = 1.5 * 60 * 1000; // 1.5 минуты 
+    const logoutTime = 2 * 60 * 1000; // 2 минуты 
 
     // Функция для отображения модального окна
     function showTimeoutWarning() {

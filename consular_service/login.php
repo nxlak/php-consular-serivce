@@ -1,8 +1,7 @@
 <?php
-// login.php
+
 session_start();
 
-// Подключение к базе данных
 include 'config.php';
 
 $errors = [];
@@ -11,8 +10,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $username = trim($_POST['username']);
     $password = $_POST['password'];
 
+    // Проверка на стороне сервера
     if (empty($username) || empty($password)) {
         $errors[] = "Все поля обязательны для заполнения.";
+    } elseif (strlen($password) < 5) {
+        $errors[] = "Пароль должен содержать не менее 6 символов.";
     } else {
         // Проверяем сначала в таблице сотрудников
         $stmt = $conn->prepare("SELECT id, password FROM employees WHERE username = ?");
@@ -23,18 +25,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         if ($stmt->num_rows == 1) {
             $stmt->bind_result($id, $stored_password);
             $stmt->fetch();
-            if ($password === $stored_password) { // НЕБЕЗОПАСНО (рекомендуется использовать password_verify)
+            if ($password === $stored_password) { 
                 $_SESSION['user_id'] = $id;
                 $_SESSION['username'] = $username;
                 $_SESSION['user_type'] = 'employee';
-                $_SESSION['last_activity'] = time(); // Установка времени последней активности
+                $_SESSION['last_activity'] = time(); 
                 header("Location: employee/employee_dashboard.php");
                 exit();
             } else {
                 $errors[] = "Неверный пароль.";
             }
         } else {
-            // Если не найден в таблице сотрудников, проверяем в таблице заявителей
             $stmt = $conn->prepare("SELECT id, password FROM applicants WHERE username = ?");
             $stmt->bind_param("s", $username);
             $stmt->execute();
@@ -43,11 +44,11 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if ($stmt->num_rows == 1) {
                 $stmt->bind_result($id, $stored_password);
                 $stmt->fetch();
-                if ($password === $stored_password) { // НЕБЕЗОПАСНО (рекомендуется использовать password_verify)
+                if ($password === $stored_password) { 
                     $_SESSION['user_id'] = $id;
                     $_SESSION['username'] = $username;
                     $_SESSION['user_type'] = 'applicant';
-                    $_SESSION['last_activity'] = time(); // Установка времени последней активности
+                    $_SESSION['last_activity'] = time();
                     header("Location: dashboard.php");
                     exit();
                 } else {
@@ -123,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <?php endforeach; ?>
             </div>
         <?php endif; ?>
-        <form action="login.php" method="POST">
+        <form action="login.php" method="POST" id="loginForm">
             <label for="username">Логин:</label>
             <input type="text" id="username" name="username" required>
 
@@ -134,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </form>
     </div>
 
-    <!-- Модальное окно для предупреждения об окончании сессии -->
+    <!-- окно для предупреждения об окончании сессии -->
     <div id="sessionTimeoutModal" class="modal">
         <div class="modal-content">
             <h2>Внимание!</h2>
@@ -143,14 +144,14 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
     </div>
 
-    <!-- Скрипт для отслеживания активности и отображения модального окна -->
+    <!-- Скрипт для отслеживания активности и отображения окна -->
     <script>
         let timeoutWarning;
         let timeoutLogout;
-        const warningTime = 1.5 * 60 * 1000; // 1.5 минуты (в миллисекундах)
-        const logoutTime = 2 * 60 * 1000; // 2 минуты (в миллисекундах)
+        const warningTime = 1.5 * 60 * 1000; // 1.5 минуты 
+        const logoutTime = 2 * 60 * 1000; // 2 минуты 
 
-        // Функция для отображения модального окна
+        // Функция для отображения окна
         function showTimeoutWarning() {
             const modal = document.getElementById('sessionTimeoutModal');
             modal.style.display = 'block';
@@ -185,6 +186,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
         // Запуск таймеров при загрузке страницы
         startTimers();
+
+        // Клиентская проверка длины пароля
+        document.getElementById('loginForm').addEventListener('submit', function(event) {
+            const password = document.getElementById('password').value;
+            if (password.length < 5) {
+                alert('Пароль должен содержать не менее 6 символов.');
+                event.preventDefault(); // Останавливаем отправку формы
+            }
+        });
     </script>
 </body>
 </html>

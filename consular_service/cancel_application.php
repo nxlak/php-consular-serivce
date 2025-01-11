@@ -1,5 +1,4 @@
 <?php
-// cancel_application.php
 include 'config.php';
 
 // Проверка аутентификации
@@ -17,7 +16,6 @@ if (!isset($_GET['application_id'])) {
 
 $application_id = intval($_GET['application_id']);
 
-// Начало транзакции
 $conn->begin_transaction();
 
 try {
@@ -44,15 +42,12 @@ try {
     }
     $stmt->close();
 
-    // Коммит транзакции
     $conn->commit();
 } catch (Exception $e) {
-    // Откат транзакции в случае ошибки
     $conn->rollback();
     $errors[] = $e->getMessage();
 }
 
-// Перенаправление с сообщением
 header("Location: dashboard.php");
 exit();
 ?>
