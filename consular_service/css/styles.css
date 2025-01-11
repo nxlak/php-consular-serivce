@@ -1,6 +1,4 @@
-/* css/styles.css */
-
-/* Сброс стилей (reset) для единообразия во всех браузерах */
+/* Сброс стилей для единообразия во всех браузерах */
 * {
     margin: 0;
     padding: 0;
@@ -10,13 +8,13 @@
 /* Шрифты и базовые цвета */
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background-color: #eef1f5; /* светло-серый фон */
-    color: #333;               /* тёмно-серый текст */
+    background-color: #eef1f5; 
+    color: #333;               
 }
 
 /* Шапка сайта */
 header {
-    background-color: #003366; /* тёмно-синий */
+    background-color: #003366; 
     color: #ffffff;
     padding: 20px 0;
     margin-bottom: 20px;
@@ -102,7 +100,7 @@ form button {
 
 form input[type="submit"]:hover,
 form button:hover {
-    background-color: #0055a5; /* немного светлее */
+    background-color: #0055a5; 
 }
 
 /* Кнопка "Добавить ещё документ" */
@@ -164,14 +162,14 @@ table th {
     color: #0055a5;
 }
 
-/* Нижний отступ у body, чтобы прижать футер к низу экрана (опционально) */
+/* Нижний отступ у body, чтобы прижать футер к низу экрана */
 body {
     margin-bottom: 60px;
 }
 
-/* Простой футер (если понадобится) */
+/* Простой футер  */
 footer {
-    position: fixed; /* или static, если не нужен "прилипший" футер */
+    position: fixed;
     bottom: 0;
     left: 0;
     width: 100%;
